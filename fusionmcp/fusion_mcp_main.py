@@ -95,7 +95,8 @@ class FusionMCP:
         
         if not execution_result['success']:
             # If execution failed, ask AI to fix the script
-            fixed_script = self.ai_interface.validate_and_fix_script(script, execution_result['error_output'])
+            error_output = execution_result.get('error_output', execution_result.get('error', 'Unknown error'))
+            fixed_script = self.ai_interface.validate_and_fix_script(script, error_output)
             execution_result = self.command_executor.execute_script(fixed_script, self.fusion_app)
         
         # Add to context
