@@ -1,0 +1,56 @@
+# FusionMCP Configuration
+
+# AI Provider Configuration
+# Choose one of: openai, gemini, ollama
+ai_provider: "openai"
+
+# OpenAI Configuration
+openai_api_key: "your-openai-api-key-here"
+openai_model: "gpt-3.5-turbo"
+# Alternative: "gpt-4", "gpt-4-turbo"
+
+# Google Gemini Configuration
+gemini_api_key: "your-gemini-api-key-here"
+gemini_model: "gemini-pro"
+# Alternative: "gemini-1.5-pro", "gemini-1.5-flash"
+
+# Ollama Configuration (for local models)
+ollama_model: "llama2"
+ollama_url: "http://localhost:11434/api/generate"
+
+# Context Management
+persistent_storage_path: "persistent_context.json"
+summary_threshold: 100  # Number of interactions before summarization
+max_interactions: 50     # Max interactions to keep in session
+
+# Command Execution
+execution_log_path: "execution_log.txt"
+allow_internet_access: false  # Whether to allow generated scripts internet access
+
+# Plugin Configuration
+plugins:
+  # Material database plugin
+  - name: "material_database"
+    type: "internal"
+    description: "Provides access to material properties database"
+  
+  # File converter plugin
+  - name: "file_converter"
+    type: "internal"
+    description: "Converts files between different formats"
+
+  # Example external app plugin
+  - name: "external_converter"
+    type: "external_app"
+    description: "External file conversion tool"
+    command: "/path/to/converter"
+    args: ["-i", "{input_file}", "-o", "{output_file}", "-f", "{format}"]
+    
+  # Example web API plugin
+  - name: "web_api_example"
+    type: "web_api"
+    description: "Example web API plugin"
+    base_url: "https://api.example.com"
+    headers:
+      Authorization: "Bearer {api_token}"
+      Content-Type: "application/json"
