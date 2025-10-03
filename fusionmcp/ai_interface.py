@@ -112,21 +112,116 @@ class OllamaProvider(AIProvider):
             full_prompt = f"Context: {context_str}\n\nUser Request: {prompt}"
         
         try:
+            # Check if this is a generate endpoint (for Ollama) or a chat endpoint
+            if "api/generate" in self.base_url:
+                response = requests.post(
+                    self.base_url,
+                    json={
+                        "model": self.model,
+                        "prompt": full_prompt,
+                        "stream": False
+                    },
+                    timeout=120
+                )
+            elif "api/chat" in self.base_url:
+                # For LM Studio which uses OpenAI-compatible API
+                response = requests.post(
+                    self.base_url,
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {"role": "system", "content": "You are an AI assistant specialized in generating Fusion 360 Python scripts. Always respond with properly formatted Python code when asked to generate scripts."},
+                            {"role": "user", "content": full_prompt}
+                        ],
+                        "stream": False
+                    },
+                    headers={"Content-Type": "application/json"},
+                    timeout=120
+                )
+            else:
+                # Default to generate endpoint
+                response = requests.post(
+                    self.base_url,
+                    json={
+                        "model": self.model,
+                        "prompt": full_prompt,
+                        "stream": False
+                    },
+                    timeout=120
+                )
+            
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            # Handle both Ollama and LM Studio response formats
+            if "api/generate" in self.base_url:
+                return result.get('response', 'No response generated')
+            elif "api/chat" in self.base_url:
+                choices = result.get('choices', [])
+                if choices:
+                    return choices[0].get('message', {}).get('content', 'No response generated')
+                else:
+                    return 'No response generated'
+            else:
+                # Default to Ollama format
+                return result.get('response', 'No response generated')
+                
+        except requests.exceptions.ConnectionError:
+            return "Error: Could not connect to local LLM server. Please ensure Ollama or LM Studio is running."
+        except requests.exceptions.Timeout:
+            return "Error: Request to local LLM server timed out. Please check your model and try again."
+        except Exception as e:
+            print(f"Error calling local LLM API: {e}")
+            return f"Error: {str(e)}"
+
+
+class LMStudioProvider(AIProvider):
+    """LM Studio local model provider (OpenAI-compatible API)."""
+    
+    def __init__(self, model: str = "default", base_url: str = "http://localhost:1234/v1/chat/completions"):
+        self.model = model
+        self.base_url = base_url
+    
+    def generate_response(self, prompt: str, context: Optional[Dict] = None) -> str:
+        """Generate a response using a local LM Studio model."""
+        # Prepare the prompt with context if provided
+        full_prompt = prompt
+        if context:
+            context_str = json.dumps(context, indent=2)
+            full_prompt = f"Context: {context_str}\n\nUser Request: {prompt}"
+        
+        try:
             response = requests.post(
                 self.base_url,
                 json={
                     "model": self.model,
-                    "prompt": full_prompt,
-                    "stream": False
+                    "messages": [
+                        {"role": "system", "content": "You are an AI assistant specialized in generating Fusion 360 Python scripts. Always respond with properly formatted Python code when asked to generate scripts. Only return the Python code without any additional explanation or markdown formatting."},
+                        {"role": "user", "content": full_prompt}
+                    ],
+                    "temperature": 0.3
                 },
-                timeout=60
+                headers={
+                    "Content-Type": "application/json"
+                },
+                timeout=120
             )
             response.raise_for_status()
             
             result = response.json()
-            return result.get('response', 'No response generated')
+            choices = result.get('choices', [])
+            if choices:
+                return choices[0].get('message', {}).get('content', 'No response generated')
+            else:
+                return 'No response generated'
+                
+        except requests.exceptions.ConnectionError:
+            return "Error: Could not connect to LM Studio server. Please ensure LM Studio is running with API enabled."
+        except requests.exceptions.Timeout:
+            return "Error: Request to LM Studio server timed out. Please check your model and try again."
         except Exception as e:
-            print(f"Error calling Ollama API: {e}")
+            print(f"Error calling LM Studio API: {e}")
             return f"Error: {str(e)}"
 
 
@@ -159,6 +254,11 @@ class AIInterface:
             model = self.config.get('ollama_model', 'llama2')
             base_url = self.config.get('ollama_url', 'http://localhost:11434/api/generate')
             return OllamaProvider(model, base_url)
+        
+        elif provider_type == 'lm_studio':
+            model = self.config.get('lm_studio_model', 'default')
+            base_url = self.config.get('lm_studio_url', 'http://localhost:1234/v1/chat/completions')
+            return LMStudioProvider(model, base_url)
         
         else:
             raise ValueError(f"Unsupported AI provider: {provider_type}")

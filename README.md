@@ -5,7 +5,7 @@ FusionMCP (Multi-Modal Control Plane) is an intelligent interface that connects 
 ## Features
 
 - **Natural Language Processing**: Convert plain English design requests into Fusion 360 commands
-- **Multi-LLM Support**: Compatible with Gemini, Ollama, and OpenAI GPT models
+- **Multi-LLM Support**: Compatible with Gemini, Ollama, LM Studio, and OpenAI GPT models
 - **Safe Script Execution**: Validates and executes generated scripts with safety checks
 - **Context Management**: Maintains both short-term session context and long-term persistent memory
 - **Plugin System**: Extensible architecture supporting external tools and APIs
@@ -44,20 +44,56 @@ FusionMCP (Multi-Modal Control Plane) is an intelligent interface that connects 
 1. Install the add-in following Fusion 360's standard process
 2. The add-in will appear in the Tools tab under "FusionMCP"
 
+## Local LLM Setup (Ollama and LM Studio)
+
+### Ollama Setup
+
+1. Install Ollama from [https://ollama.com/](https://ollama.com/)
+2. Start the Ollama service:
+   ```bash
+   ollama serve
+   ```
+3. Pull a model (e.g., Llama 3):
+   ```bash
+   ollama pull llama3
+   ```
+4. In your `config.yaml`, set:
+   ```yaml
+   ai_provider: "ollama"
+   ollama_model: "llama3"
+   ollama_url: "http://localhost:11434/api/generate"  # Default Ollama endpoint
+   ```
+
+### LM Studio Setup
+
+1. Download and install LM Studio from [https://lmstudio.ai/](https://lmstudio.ai/)
+2. Download a model (e.g., one of the Llama 3 models)
+3. Start LM Studio and load your model
+4. Click on the "Local Server (API)" button in the bottom left
+5. In your `config.yaml`, set:
+   ```yaml
+   ai_provider: "lm_studio"
+   lm_studio_model: "default"  # Keep as "default" for LM Studio
+   lm_studio_url: "http://localhost:1234/v1/chat/completions"  # Default LM Studio API endpoint
+   ```
+
 ## Configuration
 
 The system can be configured via `config.yaml`:
 
 ```yaml
-ai_provider: "openai"  # Can be "openai", "gemini", or "ollama"
+ai_provider: "openai"  # Can be "openai", "gemini", "ollama", or "lm_studio"
 openai_api_key: "your-openai-api-key"
 openai_model: "gpt-3.5-turbo"
 
 gemini_api_key: "your-gemini-api-key"
 gemini_model: "gemini-pro"
 
-ollama_model: "llama2"
+ollama_model: "llama3"
 ollama_url: "http://localhost:11434/api/generate"
+
+lm_studio_model: "default"
+lm_studio_url: "http://localhost:1234/v1/chat/completions"
 
 plugins:
   - name: "material_database"

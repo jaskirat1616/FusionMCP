@@ -1,7 +1,7 @@
 # FusionMCP Configuration
 
 # AI Provider Configuration
-# Choose one of: openai, gemini, ollama
+# Choose one of: openai, gemini, ollama, lm_studio
 ai_provider: "openai"
 
 # OpenAI Configuration
@@ -15,8 +15,12 @@ gemini_model: "gemini-pro"
 # Alternative: "gemini-1.5-pro", "gemini-1.5-flash"
 
 # Ollama Configuration (for local models)
-ollama_model: "llama2"
+ollama_model: "llama3"  # Updated to use a current model
 ollama_url: "http://localhost:11434/api/generate"
+
+# LM Studio Configuration (for local models)
+lm_studio_model: "default"
+lm_studio_url: "http://localhost:1234/v1/chat/completions"
 
 # Context Management
 persistent_storage_path: "persistent_context.json"
