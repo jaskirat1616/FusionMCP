@@ -34,10 +34,19 @@ class FusionMCP:
         # Use standard command executor by default
         self.command_executor = CommandExecutor()
         self.plugin_manager = PluginManager(config_path)
-        
+
         # Store Fusion 360 application reference if available
         self.fusion_app = None
-        
+
+        # Check if running in Fusion 360 environment
+        self.is_fusion_environment = False
+        try:
+            import adsk.core
+            import adsk.fusion
+            self.is_fusion_environment = True
+        except ImportError:
+            pass
+
         # Initialize with basic system prompt
         self.system_context = {
             "system": "You are FusionMCP, an AI assistant integrated with Fusion 360 CAD software. Your role is to interpret user requests and generate appropriate Fusion 360 Python scripts.",
@@ -127,16 +136,20 @@ class FusionMCP:
     def handle_user_input(self, user_input: str) -> str:
         """
         Handle user input and return a response.
-        
+
         Args:
             user_input: Raw user input string
-            
+
         Returns:
             Formatted response string for display
         """
+        # Check if running in standalone mode (not in Fusion 360)
+        if not self.is_fusion_environment and not self.fusion_app:
+            return self._handle_standalone_mode(user_input)
+
         try:
             result = self.process_request(user_input)
-            
+
             if result['type'] == 'plugin_result':
                 return f"Plugin executed successfully: {result['plugin_result']}"
             elif result['type'] == 'fusion_script' and result['script_generated']:
@@ -150,16 +163,77 @@ class FusionMCP:
                     return f"Script execution failed: {execution_result['error']}\nError details: {execution_result['error_output']}"
             else:
                 return "Could not process the request."
-        
+
         except Exception as e:
             error_msg = f"Error processing request: {str(e)}"
             return error_msg
+
+    def _handle_standalone_mode(self, user_input: str) -> str:
+        """Handle requests in standalone mode (demo/testing mode)."""
+        user_input_lower = user_input.lower().strip()
+
+        # Handle special commands
+        if user_input_lower == 'plugins':
+            plugins = self.plugin_manager.list_plugins()
+            return f"✓ Available plugins:\n  " + "\n  ".join(f"• {p}" for p in plugins)
+
+        if user_input_lower.startswith('material '):
+            material_name = user_input[9:].strip()
+            result = self.plugin_manager.execute_plugin('material_database', {'material': material_name})
+            if result.get('success'):
+                props = result['properties']
+                return f"""✓ Material: {result['material']}
+  Density: {props['density']} g/cm³
+  Tensile Strength: {props['tensile_strength']} MPa
+  Yield Strength: {props['yield_strength']} MPa
+  Young's Modulus: {props['youngs_modulus']} GPa
+  Poisson's Ratio: {props['poissons_ratio']}"""
+            else:
+                return f"✗ {result.get('error', 'Material not found')}"
+
+        # Try plugin execution for other inputs
+        plugin_result = self.plugin_manager.execute_plugin_if_appropriate(user_input)
+        if plugin_result and plugin_result.get('success'):
+            return f"✓ Plugin executed: {plugin_result}"
+
+        # Provide helpful information for standalone mode
+        return f"""
+FusionMCP is running in STANDALONE MODE (demo mode).
+
+This mode is for testing the system without Fusion 360.
+
+Your input: "{user_input}"
+
+To use FusionMCP with Fusion 360:
+  1. Install the add-in (see fusion360_addin/INSTALL.md)
+  2. Start Fusion 360
+  3. Use the MCP Tab > Start MCP button
+
+Available commands in standalone mode:
+  - 'plugins' - List available plugins
+  - 'material <name>' - Query material database (e.g., 'material steel')
+  - 'quit' or 'exit' - Exit the program
+
+Try: 'material aluminum' to test the material database plugin
+"""
     
     def run_interactive_mode(self):
         """Run the MCP in interactive mode (command line interface)."""
+        print("=" * 60)
         print("FusionMCP Interactive Mode")
+        if not self.is_fusion_environment and not self.fusion_app:
+            print("Running in STANDALONE MODE (demo/testing)")
+            print()
+            print("Available commands:")
+            print("  • plugins        - List available plugins")
+            print("  • material <name> - Query material database")
+            print("  • quit/exit      - Exit the program")
+            print()
+            print("Note: Full Fusion 360 integration requires the add-in.")
+        else:
+            print("Running with Fusion 360 integration")
         print("Type 'quit' or 'exit' to exit")
-        print("-" * 40)
+        print("=" * 60)
         
         while True:
             try:
