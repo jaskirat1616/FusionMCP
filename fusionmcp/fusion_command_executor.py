@@ -8,6 +8,7 @@ executed commands and errors.
 
 import ast
 import logging
+import os
 import re
 import subprocess
 import sys
