@@ -111,9 +111,15 @@ class FusionScriptValidator:
 class FusionCommandExecutor:
     """Executes validated Fusion 360 scripts safely within Fusion 360."""
     
-    def __init__(self, log_path: str = "execution_log.txt"):
+    def __init__(self, log_path: str = None):
         self.validator = FusionScriptValidator()
-        self.log_path = log_path
+        # Use temp directory for logs if no path specified
+        if log_path is None:
+            import tempfile
+            log_dir = tempfile.gettempdir()
+            self.log_path = os.path.join(log_dir, "fusionmcp_fusion_execution.log")
+        else:
+            self.log_path = log_path
         self.setup_logging()
     
     def setup_logging(self):
