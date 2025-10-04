@@ -41,8 +41,11 @@ FusionMCP (Multi-Modal Control Plane) is an intelligent interface that connects 
 
 ### For Fusion 360 Add-in
 
-1. Install the add-in following Fusion 360's standard process
-2. The add-in will appear in the Tools tab under "FusionMCP"
+1. Install the add-in by copying the `fusion360_addin` directory to your Fusion 360 add-ins folder:
+   - **Windows**: `%APPDATA%\Autodesk\Autodesk Fusion 360\API\Addins\FusionMCP`
+   - **Mac**: `~/Library/Application Support/Autodesk/Autodesk Fusion 360\API/Addins/FusionMCP`
+2. Restart Fusion 360
+3. The add-in will appear in the MCP Tab under the SolidModel workspace
 
 ## Local LLM Setup (Ollama and LM Studio)
 
@@ -122,11 +125,27 @@ Then enter your design requests:
 FusionMCP> Create a cylinder with radius 5mm and height 10mm
 ```
 
-### As a Fusion 360 Add-in
+### As a Fusion 360 Add-in (Real-time Integration)
 
-1. Load the FusionMCP add-in in Fusion 360
-2. Access the MCP through the Tools tab
-3. Enter your design requests in the dialog box
+The system now supports direct integration with Fusion 360 for real-time CAD operations:
+
+1. **Install the Add-in**:
+   - Locate your Fusion 360 add-ins directory:
+     - **Windows**: `%APPDATA%\Autodesk\Autodesk Fusion 360\API\Addins`
+     - **Mac**: `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/Addins`
+   - Create a new folder named `FusionMCP`
+   - Copy all files from the `fusion360_addin/` directory to this folder
+   - Restart Fusion 360
+
+2. **Access the Interface**:
+   - Open Fusion 360
+   - Navigate to the "MCP Tab" in the SolidModel workspace
+   - Click the "Start MCP" button to open the command dialog
+
+3. **Use Natural Language**:
+   - Enter your design requests in the text box (e.g., "Create a cube with dimensions 10mm x 10mm x 10mm")
+   - Choose whether to execute directly in Fusion 360
+   - The AI will generate and execute Fusion 360 scripts in real-time
 
 ### Example Requests
 
@@ -134,6 +153,7 @@ FusionMCP> Create a cylinder with radius 5mm and height 10mm
 - "Draw a circle with radius 20mm at coordinates (5, 5)"
 - "Extrude the sketch by 15mm"
 - "Create a revolved feature from the selected profile"
+- "Create a cylinder with radius 3mm and height 15mm at the origin"
 
 ## Architecture
 
