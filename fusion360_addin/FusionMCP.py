@@ -8,10 +8,17 @@ import os
 import sys
 
 # Add user's Python site-packages for dependencies FIRST (requests, yaml, etc.)
+# Try multiple possible Python 3.9 locations
 home_dir = os.path.expanduser('~')
-user_site_packages = os.path.join(home_dir, 'Library', 'Python', '3.9', 'lib', 'python', 'site-packages')
-if os.path.exists(user_site_packages):
-    sys.path.insert(0, user_site_packages)
+possible_paths = [
+    os.path.join(home_dir, 'Library', 'Python', '3.9', 'lib', 'python', 'site-packages'),
+    '/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/site-packages',
+    '/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages'
+]
+
+for path in possible_paths:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
 
 # Add the parent directory to the path so we can import fusionmcp package
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
