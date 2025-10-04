@@ -7,12 +7,12 @@ import traceback
 import os
 import sys
 
-# Add the fusionmcp directory to the path so we can import it
-fusionmcp_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'fusionmcp')
-sys.path.insert(0, fusionmcp_path)
+# Add the parent directory to the path so we can import fusionmcp package
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
 
 from fusionmcp.fusion_mcp_main import FusionMCP
-from fusionmcp.command_executor import CommandExecutor
+from fusionmcp.fusion_command_executor import FusionCommandExecutor
 
 
 def run(context):
@@ -21,10 +21,26 @@ def run(context):
     try:
         app = adsk.core.Application.get()
         ui = app.userInterface
-        
-        # Create the FusionMCP instance
-        mcp = FusionMCP()
-        
+
+        # Find the config file - check multiple locations
+        addin_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(addin_dir)
+
+        config_locations = [
+            os.path.join(addin_dir, 'config.yaml'),
+            os.path.join(parent_dir, 'config.yaml'),
+            os.path.expanduser('~/FusionMCP/config.yaml')
+        ]
+
+        config_path = 'config.yaml'  # Default fallback
+        for path in config_locations:
+            if os.path.exists(path):
+                config_path = path
+                break
+
+        # Create the FusionMCP instance with proper config path
+        mcp = FusionMCP(config_path)
+
         # Set the Fusion 360 application in the MCP
         mcp.set_fusion_app(app)
         
@@ -35,7 +51,7 @@ def run(context):
                 'FusionMCP.Start',
                 'Start MCP',
                 'Launch the Multi-Modal Control Plane for Fusion 360',
-                './/resources//mcp_icon.png'  # TODO: Add an icon
+                './resources/mcp_icon.png'
             )
         
         # Connect to the command created event
@@ -136,7 +152,7 @@ class FusionMCPCommandExecuteHandler(adsk.core.CommandEventHandler):
                 
                 if should_execute:
                     # Execute the script in Fusion 360
-                    executor = CommandExecutor()
+                    executor = FusionCommandExecutor()
                     execution_result = executor.execute_script(script, app)
                     
                     if execution_result['success']:

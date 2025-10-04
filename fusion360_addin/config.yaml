@@ -1,0 +1,44 @@
+# FusionMCP Configuration for Fusion 360 Add-in
+
+# AI Provider Configuration
+# Choose one of: openai, gemini, ollama, lm_studio
+ai_provider: "ollama"
+
+# OpenAI Configuration
+openai_api_key: "your-openai-api-key-here"
+openai_model: "gpt-3.5-turbo"
+# Alternative: "gpt-4", "gpt-4-turbo"
+
+# Google Gemini Configuration
+gemini_api_key: "your-gemini-api-key-here"
+gemini_model: "gemini-pro"
+# Alternative: "gemini-1.5-pro", "gemini-1.5-flash"
+
+# Ollama Configuration (for local models)
+ollama_model: "llama3.1"
+ollama_url: "http://localhost:11434/api/generate"
+
+# LM Studio Configuration (for local models)
+lm_studio_model: "default"
+lm_studio_url: "http://localhost:1234/v1/chat/completions"
+
+# Context Management
+persistent_storage_path: "persistent_context.json"
+summary_threshold: 100  # Number of interactions before summarization
+max_interactions: 50     # Max interactions to keep in session
+
+# Command Execution
+execution_log_path: "execution_log.txt"
+allow_internet_access: false  # Whether to allow generated scripts internet access
+
+# Plugin Configuration
+plugins:
+  # Material database plugin
+  - name: "material_database"
+    type: "internal"
+    description: "Provides access to material properties database"
+
+  # File converter plugin
+  - name: "file_converter"
+    type: "internal"
+    description: "Converts files between different formats"

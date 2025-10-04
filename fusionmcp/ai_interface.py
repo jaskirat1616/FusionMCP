@@ -272,10 +272,60 @@ class AIInterface:
         
         User Request: {user_request}
         
-        Provide only the Python code without additional explanation.
+        Provide only the raw Python code without any markdown formatting, code block markers (like ```python), or additional explanation.
+        Do not wrap the code in any formatting - return pure executable Python code.
         """
         
-        return self.provider.generate_response(prompt, context)
+        raw_script = self.provider.generate_response(prompt, context)
+        
+        # Clean up any markdown formatting that might have been included
+        return self._clean_script(raw_script)
+    
+    def _clean_script(self, script: str) -> str:
+        """Clean up the script to remove markdown formatting and other artifacts."""
+        # Remove markdown code block markers if present
+        lines = script.split('\n')
+        cleaned_lines = []
+        
+        in_code_block = False
+        for line in lines:
+            # Check if it's a code block marker
+            if line.strip().startswith('```'):
+                if not in_code_block:
+                    # Starting a code block, skip this line
+                    in_code_block = True
+                    continue
+                else:
+                    # Ending a code block, skip this line
+                    in_code_block = False
+                    continue
+            # Skip the line if we're looking at a language specifier after ```
+            elif in_code_block and not line.strip():
+                continue
+            else:
+                cleaned_lines.append(line)
+        
+        # Join the cleaned lines back together
+        cleaned_script = '\n'.join(cleaned_lines)
+        
+        # Remove leading/trailing whitespace
+        cleaned_script = cleaned_script.strip()
+        
+        # Remove any additional explanations after the code
+        # Look for lines that indicate explanations or comments outside the code
+        lines = cleaned_script.split('\n')
+        code_lines = []
+        for line in lines:
+            # If we encounter a line that looks like an explanation, stop
+            stripped = line.strip()
+            if (stripped.lower().startswith('explanation:') or 
+                stripped.lower().startswith('note:') or 
+                stripped.lower().startswith('# explanation') or
+                stripped.lower().startswith('# note')):
+                break
+            code_lines.append(line)
+        
+        return '\n'.join(code_lines).strip()
     
     def explain_fusion_operation(self, operation_description: str) -> str:
         """Generate an explanation of a Fusion 360 operation."""

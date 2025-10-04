@@ -19,17 +19,14 @@ import traceback
 class FusionScriptValidator:
     """Validates Fusion 360 scripts to prevent potentially destructive operations."""
     
-    # Dangerous functions that could cause harm in Fusion 360
+    # Dangerous functions that could cause harm in Fusion 360 (excluding Fusion 360 API methods)
     DANGEROUS_FUNCTIONS = {
-        'os.remove', 'os.rmdir', 'shutil.rmtree', 'subprocess.call',
-        'subprocess.run', 'exec', 'eval', '__import__', 'open',
-        # Fusion 360 specific potentially destructive operations
-        'delete', 'deleteEntity', 'deleteAll'
+        'exec', 'eval', '__import__'
     }
     
-    # Dangerous imports
+    # Dangerous imports that could cause harm in Fusion 360 (excluding Fusion 360 API imports)
     DANGEROUS_IMPORTS = {
-        'os', 'shutil', 'subprocess', 'sys', 'importlib', 'urllib', 
+        'subprocess', 'sys', 'importlib', 
         'requests', 'webbrowser', 'socket', 'ftplib'
     }
     

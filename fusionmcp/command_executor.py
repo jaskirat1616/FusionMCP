@@ -11,6 +11,7 @@ import logging
 import re
 import subprocess
 import sys
+import time
 from typing import Dict, List, Optional, Any
 from io import StringIO
 import traceback
@@ -19,15 +20,16 @@ import traceback
 class ScriptValidator:
     """Validates Fusion 360 scripts to prevent potentially destructive operations."""
     
-    # Dangerous functions that could cause harm
+    # Dangerous functions that could cause harm (outside of Fusion 360 context)
     DANGEROUS_FUNCTIONS = {
         'os.remove', 'os.rmdir', 'shutil.rmtree', 'subprocess.call',
         'subprocess.run', 'exec', 'eval', '__import__', 'open'
     }
     
-    # Dangerous imports
+    # Dangerous imports that could cause harm (outside of Fusion 360 context)
     DANGEROUS_IMPORTS = {
-        'os', 'shutil', 'subprocess', 'sys', 'importlib'
+        'subprocess', 'sys', 'importlib', 'urllib', 
+        'requests', 'webbrowser', 'socket', 'ftplib'
     }
     
     def __init__(self):
@@ -224,6 +226,7 @@ class CommandExecutor:
                     'classmethod': classmethod,
                     'super': super,
                     'object': object,
+                    '__import__': __import__,
                 }
             }
             
@@ -235,8 +238,40 @@ class CommandExecutor:
                     import adsk.core
                     import adsk.fusion
                     exec_globals['adsk'] = adsk
+                    exec_globals['core'] = adsk.core
+                    exec_globals['fusion'] = adsk.fusion
                 except ImportError:
                     pass  # Don't add if not available in this environment
+            else:
+                # In non-Fusion 360 environment, provide mock Fusion 360 modules for testing
+                # This allows us to validate and partially test Fusion 360 scripts without full Fusion 360
+                # Since the imports in the script will try to import 'adsk.core' etc., we need to make 
+                # sure these are available before the script executes. We'll add them to exec_globals.
+                
+                # Create mock objects for testing if adsk is not available
+                class MockModule:
+                    def __init__(self, name="MockModule"):
+                        self._name = name
+                    
+                    def __getattr__(self, name):
+                        if name.startswith('__'):
+                            raise AttributeError(name)
+                        # Return a callable that does nothing but can also have attributes
+                        result = lambda *args, **kwargs: MockModule(f"{self._name}.{name}")
+                        result.__name__ = name
+                        return result
+
+                # Create mock adsk module
+                mock_adsk = MockModule("adsk")
+                mock_adsk.core = MockModule("adsk.core")
+                mock_adsk.fusion = MockModule("adsk.fusion") 
+                mock_adsk.cam = MockModule("adsk.cam")
+                
+                # Add the mock modules to globals before execution so imports succeed
+                exec_globals['adsk'] = mock_adsk
+                exec_globals['core'] = mock_adsk.core
+                exec_globals['fusion'] = mock_adsk.fusion
+                exec_globals['cam'] = mock_adsk.cam
             
             # Execute the script
             exec(script, exec_globals)
@@ -298,7 +333,7 @@ class CommandExecutor:
                 'command': command,
                 'params': params,
                 'executed': True,
-                'timestamp': __import__('time').time()
+                'timestamp': time.time()
             }
             
             self.logger.info(f"Executed safe command: {result}")

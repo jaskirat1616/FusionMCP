@@ -149,6 +149,24 @@ class PluginManager:
                 base_url = plugin_config.get('base_url')
                 headers = plugin_config.get('headers', {})
                 plugin = WebAPIPlugin(name, description, base_url, headers)
+            elif plugin_type == 'internal':
+                # Create internal plugins based on their name
+                if name == 'material_database':
+                    plugin = MaterialDatabasePlugin()
+                elif name == 'file_converter':
+                    plugin = FileConverterPlugin()
+                elif name == 'external_converter':
+                    # For backward compatibility, treat as external app plugin
+                    command = plugin_config.get('command', '/path/to/converter')
+                    args = plugin_config.get('args', [])
+                    plugin = ExternalAppPlugin(name, description, command, args)
+                elif name == 'web_api_example':
+                    # For backward compatibility, treat as web API plugin
+                    base_url = plugin_config.get('base_url', 'https://api.example.com')
+                    headers = plugin_config.get('headers', {})
+                    plugin = WebAPIPlugin(name, description, base_url, headers)
+                else:
+                    continue  # Unknown internal plugin
             else:
                 continue  # Unsupported plugin type
             
