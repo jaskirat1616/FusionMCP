@@ -1,0 +1,30 @@
+{
+    "id": "FusionMCP",
+    "version": "1.0.0",
+    "name": "FusionMCP - Multi-Modal Control Plane",
+    "manufacturer": "FusionMCP Development Team",
+    "description": "An intelligent interface that connects AI models to Fusion 360, enabling automated CAD operations through natural language processing.",
+    "url": "https://github.com/jaskirat1616/FusionMCP",
+    "apiVersion": "2.0.0",
+    "isDebug": false,
+    "entryPoints": [
+        {
+            "type": "panel",
+            "id": "FusionMCPPanel",
+            "name": "FusionMCP",
+            "commands": [
+                {
+                    "type": "button",
+                    "id": "FusionMCP.Start",
+                    "name": "Start MCP",
+                    "description": "Start the FusionMCP interface",
+                    "toolTip": "Launch the Multi-Modal Control Plane for Fusion 360",
+                    "resource": "./resources",
+                    "flyout": "none"
+                }
+            ],
+            "panelName": "SolidModel",
+            "tabName": "MCP Tab"
+        }
+    ]
+}

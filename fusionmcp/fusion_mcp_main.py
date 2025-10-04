@@ -20,6 +20,7 @@ from typing import Dict, Any, Optional
 from .context_manager import ContextManager
 from .ai_interface import AIInterface
 from .command_executor import CommandExecutor
+from .fusion_command_executor import FusionCommandExecutor
 from .plugin_manager import PluginManager
 
 
@@ -30,6 +31,7 @@ class FusionMCP:
         self.config_path = config_path
         self.context_manager = ContextManager()
         self.ai_interface = AIInterface(config_path)
+        # Use standard command executor by default
         self.command_executor = CommandExecutor()
         self.plugin_manager = PluginManager(config_path)
         
@@ -48,8 +50,17 @@ class FusionMCP:
         }
     
     def set_fusion_app(self, app):
-        """Set the Fusion 360 application object."""
+        """Set the Fusion 360 application object and update command executor."""
         self.fusion_app = app
+        # Use Fusion-specific executor when in Fusion 360 environment
+        try:
+            import adsk.core
+            import adsk.fusion
+            from .fusion_command_executor import FusionCommandExecutor
+            self.command_executor = FusionCommandExecutor()
+        except ImportError:
+            # Not in Fusion 360 environment, keep standard executor
+            pass
     
     def process_request(self, user_request: str) -> Dict[str, Any]:
         """
