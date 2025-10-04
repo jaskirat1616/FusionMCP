@@ -57,12 +57,12 @@ def run(context):
         # Set the Fusion 360 application in the MCP
         mcp.set_fusion_app(app)
 
-        # Create a command for the add-in
-        cmd_def = ui.commandDefinitions.itemById('FusionMCP.Start')
+        # Create a command for the add-in (use simple ID without dots)
+        cmd_def = ui.commandDefinitions.itemById('FusionMCPStart')
         if not cmd_def:
             try:
                 cmd_def = ui.commandDefinitions.addButtonDefinition(
-                    'FusionMCP.Start',
+                    'FusionMCPStart',
                     'Start MCP',
                     'Launch the Multi-Modal Control Plane for Fusion 360',
                     './resources/mcp_icon.png'
@@ -70,7 +70,7 @@ def run(context):
             except:
                 # If button creation fails, try without icon
                 cmd_def = ui.commandDefinitions.addButtonDefinition(
-                    'FusionMCP.Start',
+                    'FusionMCPStart',
                     'Start MCP',
                     'Launch the Multi-Modal Control Plane for Fusion 360'
                 )
@@ -95,7 +95,7 @@ def stop(context):
         ui = app.userInterface
 
         # Clean up the command definition
-        cmd_def = ui.commandDefinitions.itemById('FusionMCP.Start')
+        cmd_def = ui.commandDefinitions.itemById('FusionMCPStart')
         if cmd_def:
             cmd_def.deleteMe()
 
