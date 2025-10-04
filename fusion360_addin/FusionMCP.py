@@ -11,6 +11,13 @@ import sys
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
 
+# Add user's Python site-packages for dependencies (requests, yaml, etc.)
+import os as _os
+home_dir = _os.path.expanduser('~')
+user_site_packages = _os.path.join(home_dir, 'Library', 'Python', '3.9', 'lib', 'python', 'site-packages')
+if _os.path.exists(user_site_packages):
+    sys.path.insert(0, user_site_packages)
+
 from fusionmcp.fusion_mcp_main import FusionMCP
 from fusionmcp.fusion_command_executor import FusionCommandExecutor
 
