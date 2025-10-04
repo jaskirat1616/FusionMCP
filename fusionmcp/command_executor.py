@@ -8,6 +8,7 @@ executed commands and errors.
 
 import ast
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -115,24 +116,59 @@ class CommandExecutor:
     
     def __init__(self, log_path: str = None):
         self.validator = ScriptValidator()
-        # Use temp directory for logs if no path specified
+        # Use a writable location for logs if no path specified
         if log_path is None:
+            # Try multiple possible locations in order of preference
             import tempfile
-            log_dir = tempfile.gettempdir()
-            self.log_path = os.path.join(log_dir, "fusionmcp_execution.log")
+            import os
+            
+            # First try temp directory
+            try:
+                log_dir = tempfile.gettempdir()
+                self.log_path = os.path.join(log_dir, "fusionmcp_execution.log")
+                # Test if we can write to this location
+                with open(self.log_path, 'a'):
+                    pass
+                os.remove(self.log_path)  # Clean up the test file
+            except (OSError, IOError):
+                # If temp directory doesn't work, try current directory
+                try:
+                    self.log_path = os.path.join(os.getcwd(), "fusionmcp_execution.log")
+                    # Test if we can write to this location
+                    with open(self.log_path, 'a'):
+                        pass
+                    os.remove(self.log_path)  # Clean up the test file
+                except (OSError, IOError):
+                    # If current directory doesn't work, try user home directory
+                    try:
+                        home_dir = os.path.expanduser("~")
+                        self.log_path = os.path.join(home_dir, "fusionmcp_execution.log")
+                        # Test if we can write to this location
+                        with open(self.log_path, 'a'):
+                            pass
+                        os.remove(self.log_path)  # Clean up the test file
+                    except (OSError, IOError):
+                        # If all else fails, use a name that will be handled by setup_logging
+                        self.log_path = "execution_log.txt"
         else:
             self.log_path = log_path
         self.setup_logging()
     
     def setup_logging(self):
         """Setup logging for command execution."""
+        try:
+            # Try to create the file handler with the specified log path
+            file_handler = logging.FileHandler(self.log_path)
+            handlers = [file_handler, logging.StreamHandler(sys.stdout)]
+        except OSError:
+            # If file creation fails (e.g., read-only file system), log only to console
+            print(f"Warning: Could not create log file at {self.log_path}. Logging to console only.")
+            handlers = [logging.StreamHandler(sys.stdout)]
+        
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(self.log_path),
-                logging.StreamHandler(sys.stdout)
-            ]
+            handlers=handlers
         )
         self.logger = logging.getLogger(__name__)
     
