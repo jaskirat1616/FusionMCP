@@ -7,16 +7,15 @@ import traceback
 import os
 import sys
 
+# Add user's Python site-packages for dependencies FIRST (requests, yaml, etc.)
+home_dir = os.path.expanduser('~')
+user_site_packages = os.path.join(home_dir, 'Library', 'Python', '3.9', 'lib', 'python', 'site-packages')
+if os.path.exists(user_site_packages):
+    sys.path.insert(0, user_site_packages)
+
 # Add the parent directory to the path so we can import fusionmcp package
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
-
-# Add user's Python site-packages for dependencies (requests, yaml, etc.)
-import os as _os
-home_dir = _os.path.expanduser('~')
-user_site_packages = _os.path.join(home_dir, 'Library', 'Python', '3.9', 'lib', 'python', 'site-packages')
-if _os.path.exists(user_site_packages):
-    sys.path.insert(0, user_site_packages)
 
 from fusionmcp.fusion_mcp_main import FusionMCP
 from fusionmcp.fusion_command_executor import FusionCommandExecutor
@@ -50,7 +49,7 @@ def run(context):
 
         # Set the Fusion 360 application in the MCP
         mcp.set_fusion_app(app)
-        
+
         # Create a command for the add-in
         cmd_def = ui.commandDefinitions.itemById('FusionMCP.Start')
         if not cmd_def:
@@ -60,14 +59,14 @@ def run(context):
                 'Launch the Multi-Modal Control Plane for Fusion 360',
                 './resources/mcp_icon.png'
             )
-        
+
         # Connect to the command created event
         on_execute = FusionMCPCommandCreatedEventHandler(mcp)
         cmd_def.commandCreated.add(on_execute)
-        
+
         # Execute the command
         cmd_def.execute()
-        
+
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -79,12 +78,12 @@ def stop(context):
     try:
         app = adsk.core.Application.get()
         ui = app.userInterface
-        
+
         # Clean up the command definition
         cmd_def = ui.commandDefinitions.itemById('FusionMCP.Start')
         if cmd_def:
             cmd_def.deleteMe()
-        
+
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -92,35 +91,35 @@ def stop(context):
 
 class FusionMCPCommandCreatedEventHandler(adsk.core.CommandCreatedEventHandler):
     """Event handler for when the MCP command is created."""
-    
+
     def __init__(self, mcp):
         super().__init__()
         self.mcp = mcp
-    
+
     def notify(self, args):
         try:
             # Create the command
             cmd = args.command
             cmd.isOKButtonVisible = True
             cmd.isCancelButtonVisible = True
-            
+
             # Connect to the execute event
             on_execute = FusionMCPCommandExecuteHandler(self.mcp)
             cmd.execute.add(on_execute)
-            
+
             # Connect to the input changed event
             on_input_changed = FusionMCPCommandInputChangedHandler(self.mcp)
             cmd.inputChanged.add(on_input_changed)
-            
+
             # Connect to the destroy event
             on_destroy = FusionMCPCommandDestroyHandler()
             cmd.destroy.add(on_destroy)
-            
+
             # Add inputs to the command dialog
             inputs = cmd.commandInputs
             input_text = inputs.addTextBoxCommandInput('inputText', 'Enter your request:', 'Create a cube with dimensions 10mm x 10mm x 10mm', 5, True)
             execute_button = inputs.addBoolValueInput('executeButton', 'Execute', False, '', True)
-            
+
         except:
             app = adsk.core.Application.get()
             ui = app.userInterface
@@ -129,39 +128,39 @@ class FusionMCPCommandCreatedEventHandler(adsk.core.CommandCreatedEventHandler):
 
 class FusionMCPCommandExecuteHandler(adsk.core.CommandEventHandler):
     """Event handler for when the MCP command is executed."""
-    
+
     def __init__(self, mcp):
         super().__init__()
         self.mcp = mcp
-    
+
     def notify(self, args):
         try:
             app = adsk.core.Application.get()
             ui = app.userInterface
             cmd = args.firingEvent.sender
-            
+
             # Get the input values
             input_text = cmd.commandInputs.itemById('inputText').text
             should_execute = cmd.commandInputs.itemById('executeButton').value
-            
+
             if input_text.strip() == '':
                 ui.messageBox('Please enter a request.')
                 return
-            
+
             # Process the request through FusionMCP
             ui.messageBox('Processing request: {}'.format(input_text))
-            
+
             # Use the MCP to process the request
             result = self.mcp.process_request(input_text)
-            
+
             if result['type'] == 'fusion_script':
                 script = result['generated_script']
-                
+
                 if should_execute:
                     # Execute the script in Fusion 360
                     executor = FusionCommandExecutor()
                     execution_result = executor.execute_script(script, app)
-                    
+
                     if execution_result['success']:
                         ui.messageBox('Script executed successfully!\nOutput: {}'.format(execution_result['output']))
                     else:
@@ -171,7 +170,7 @@ class FusionMCPCommandExecuteHandler(adsk.core.CommandEventHandler):
                     ui.messageBox('Generated script:\n{}'.format(script[:500] + '...' if len(script) > 500 else script))
             else:
                 ui.messageBox('Could not process the request.')
-                
+
         except:
             app = adsk.core.Application.get()
             ui = app.userInterface
@@ -180,11 +179,11 @@ class FusionMCPCommandExecuteHandler(adsk.core.CommandEventHandler):
 
 class FusionMCPCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
     """Event handler for when command inputs change."""
-    
+
     def __init__(self, mcp):
         super().__init__()
         self.mcp = mcp
-    
+
     def notify(self, args):
         try:
             changed_input = args.input
@@ -197,10 +196,10 @@ class FusionMCPCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
 class FusionMCPCommandDestroyHandler(adsk.core.CommandEventHandler):
     """Event handler for when the command is destroyed."""
-    
+
     def __init__(self):
         super().__init__()
-    
+
     def notify(self, args):
         try:
             # Clean up if needed
