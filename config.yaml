@@ -2,7 +2,7 @@
 
 # AI Provider Configuration
 # Choose one of: openai, gemini, ollama, lm_studio
-ai_provider: "openai"
+ai_provider: "ollama"
 
 # OpenAI Configuration
 openai_api_key: "your-openai-api-key-here"
@@ -15,7 +15,7 @@ gemini_model: "gemini-pro"
 # Alternative: "gemini-1.5-pro", "gemini-1.5-flash"
 
 # Ollama Configuration (for local models)
-ollama_model: "llama3"  # Updated to use a current model
+ollama_model: "llama3.1"  # Updated to use a current model
 ollama_url: "http://localhost:11434/api/generate"
 
 # LM Studio Configuration (for local models)
