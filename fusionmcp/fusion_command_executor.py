@@ -124,13 +124,19 @@ class FusionCommandExecutor:
     
     def setup_logging(self):
         """Setup logging for command execution."""
+        try:
+            # Try to create the file handler with the specified log path
+            file_handler = logging.FileHandler(self.log_path)
+            handlers = [file_handler, logging.StreamHandler(sys.stdout)]
+        except OSError:
+            # If file creation fails (e.g., read-only file system), log only to console
+            print(f"Warning: Could not create log file at {self.log_path}. Logging to console only.")
+            handlers = [logging.StreamHandler(sys.stdout)]
+
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(self.log_path),
-                logging.StreamHandler(sys.stdout)
-            ]
+            handlers=handlers
         )
         self.logger = logging.getLogger(__name__)
     
