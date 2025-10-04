@@ -60,12 +60,20 @@ def run(context):
         # Create a command for the add-in
         cmd_def = ui.commandDefinitions.itemById('FusionMCP.Start')
         if not cmd_def:
-            cmd_def = ui.commandDefinitions.addButtonDefinition(
-                'FusionMCP.Start',
-                'Start MCP',
-                'Launch the Multi-Modal Control Plane for Fusion 360',
-                './resources/mcp_icon.png'
-            )
+            try:
+                cmd_def = ui.commandDefinitions.addButtonDefinition(
+                    'FusionMCP.Start',
+                    'Start MCP',
+                    'Launch the Multi-Modal Control Plane for Fusion 360',
+                    './resources/mcp_icon.png'
+                )
+            except:
+                # If button creation fails, try without icon
+                cmd_def = ui.commandDefinitions.addButtonDefinition(
+                    'FusionMCP.Start',
+                    'Start MCP',
+                    'Launch the Multi-Modal Control Plane for Fusion 360'
+                )
 
         # Connect to the command created event
         on_execute = FusionMCPCommandCreatedEventHandler(mcp)

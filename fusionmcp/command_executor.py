@@ -116,42 +116,7 @@ class CommandExecutor:
     
     def __init__(self, log_path: str = None):
         self.validator = ScriptValidator()
-        # Use a writable location for logs if no path specified
-        if log_path is None:
-            # Try multiple possible locations in order of preference
-            import tempfile
-            import os
-            
-            # First try temp directory
-            try:
-                log_dir = tempfile.gettempdir()
-                self.log_path = os.path.join(log_dir, "fusionmcp_execution.log")
-                # Test if we can write to this location
-                with open(self.log_path, 'a'):
-                    pass
-                os.remove(self.log_path)  # Clean up the test file
-            except (OSError, IOError):
-                # If temp directory doesn't work, try current directory
-                try:
-                    self.log_path = os.path.join(os.getcwd(), "fusionmcp_execution.log")
-                    # Test if we can write to this location
-                    with open(self.log_path, 'a'):
-                        pass
-                    os.remove(self.log_path)  # Clean up the test file
-                except (OSError, IOError):
-                    # If current directory doesn't work, try user home directory
-                    try:
-                        home_dir = os.path.expanduser("~")
-                        self.log_path = os.path.join(home_dir, "fusionmcp_execution.log")
-                        # Test if we can write to this location
-                        with open(self.log_path, 'a'):
-                            pass
-                        os.remove(self.log_path)  # Clean up the test file
-                    except (OSError, IOError):
-                        # If all else fails, use a name that will be handled by setup_logging
-                        self.log_path = "execution_log.txt"
-        else:
-            self.log_path = log_path
+        self.log_path = log_path  # Will be None for console-only logging
         self.setup_logging()
     
     def setup_logging(self):

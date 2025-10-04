@@ -114,30 +114,19 @@ class FusionCommandExecutor:
     
     def __init__(self, log_path: str = None):
         self.validator = FusionScriptValidator()
-        # Use temp directory for logs if no path specified
-        if log_path is None:
-            import tempfile
-            log_dir = tempfile.gettempdir()
-            self.log_path = os.path.join(log_dir, "fusionmcp_fusion_execution.log")
-        else:
-            self.log_path = log_path
+        self.log_path = log_path  # Will be None for console-only logging
         self.setup_logging()
     
     def setup_logging(self):
         """Setup logging for command execution."""
-        try:
-            # Try to create the file handler with the specified log path
-            file_handler = logging.FileHandler(self.log_path)
-            handlers = [file_handler, logging.StreamHandler(sys.stdout)]
-        except OSError:
-            # If file creation fails (e.g., read-only file system), log only to console
-            print(f"Warning: Could not create log file at {self.log_path}. Logging to console only.")
-            handlers = [logging.StreamHandler(sys.stdout)]
+        # Only log to console to avoid file system permission issues in Fusion 360
+        handlers = [logging.StreamHandler(sys.stdout)]
 
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=handlers
+            handlers=handlers,
+            force=True  # Override any existing configuration
         )
         self.logger = logging.getLogger(__name__)
     
