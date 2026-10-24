@@ -7,6 +7,7 @@ executed commands and errors.
 """
 
 import ast
+import importlib.util
 import logging
 import os
 import re
@@ -58,10 +59,12 @@ class FusionScriptValidator:
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     for alias in node.names:
+                        self._validate_import(alias.name, result)
                         if alias.name in self.DANGEROUS_IMPORTS:
                             result['errors'].append(f"Dangerous import found: {alias.name}")
                             result['is_safe'] = False
                 elif isinstance(node, ast.ImportFrom):
+                    self._validate_import(node.module or '', result, node.level)
                     if node.module in self.DANGEROUS_IMPORTS:
                         result['errors'].append(f"Dangerous import found: from {node.module}")
                         result['is_safe'] = False
@@ -89,6 +92,16 @@ class FusionScriptValidator:
             result['is_safe'] = False
         
         return result
+
+    def _validate_import(self, module: str, result: Dict[str, Any], level: int = 0):
+        root = module.split('.')[0]
+        if level or (root != 'adsk' and importlib.util.find_spec(root) is None):
+            result['is_safe'] = False
+            result['errors'].append(
+                f"Unsupported import: {module or '(relative import)'}. "
+                "Generate again using Autodesk's adsk.core/adsk.fusion API "
+                "and Python standard-library modules; do not install invented wrappers."
+            )
     
     def _get_function_name(self, call_node: ast.Call) -> str:
         """Extract function name from an AST call node."""
@@ -162,6 +175,7 @@ class FusionCommandExecutor:
             # Import the necessary Fusion 360 modules
             exec_globals = {
                 '__builtins__': __builtins__,
+                '__name__': '__fusionmcp__',
             }
             
             # Add Fusion 360 API access if available
@@ -187,6 +201,9 @@ class FusionCommandExecutor:
             
             # Execute the script
             exec(script, exec_globals)
+            entry_point = exec_globals.get('run')
+            if callable(entry_point):
+                entry_point(None)
             
             # Restore stdout/stderr
             sys.stdout = old_stdout

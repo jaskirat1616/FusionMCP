@@ -6,8 +6,10 @@ for processing natural language requests and generating Fusion 360 commands.
 It handles API calls, error management, and authentication.
 """
 
+import ast
 import json
 import os
+import re
 import requests
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any
@@ -211,18 +213,19 @@ class LMStudioProvider(AIProvider):
             
             result = response.json()
             choices = result.get('choices', [])
-            if choices:
-                return choices[0].get('message', {}).get('content', 'No response generated')
-            else:
-                return 'No response generated'
+            if not choices:
+                raise ValueError("LM Studio returned no choices")
+            if choices[0].get('finish_reason') == 'length':
+                raise ValueError("LM Studio truncated the script. Increase its output limit.")
+            content = choices[0].get('message', {}).get('content')
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("LM Studio returned no script content")
+            return content
                 
-        except requests.exceptions.ConnectionError:
-            return "Error: Could not connect to LM Studio server. Please ensure LM Studio is running with API enabled."
-        except requests.exceptions.Timeout:
-            return "Error: Request to LM Studio server timed out. Please check your model and try again."
-        except Exception as e:
-            print(f"Error calling LM Studio API: {e}")
-            return f"Error: {str(e)}"
+        except requests.exceptions.ConnectionError as e:
+            raise RuntimeError("Could not connect to LM Studio. Start its local server.") from e
+        except requests.exceptions.Timeout as e:
+            raise RuntimeError("LM Studio timed out after 120 seconds.") from e
 
 
 class AIInterface:
@@ -269,11 +272,56 @@ class AIInterface:
         prompt = f"""
         Convert the following user request into a Fusion 360 Python script using the Fusion 360 API.
         The script should be complete, safe, and executable.
+
+        This runs INSIDE Autodesk Fusion using its official Python API:
+        import adsk.core
+        import adsk.fusion
+        import math
+        def run(context):
+            app = adsk.core.Application.get()
+            design = adsk.fusion.Design.cast(app.activeProduct)
+            if design is None:
+                raise RuntimeError("Open a Fusion design first.")
+            root = design.rootComponent
+
+        Use actual adsk.core and adsk.fusion objects and methods.
+        Do NOT import f3dapi, fusion360, cadquery, or third-party wrappers.
+        Only Python standard-library modules and the adsk API are available.
+        Use run(context) as the entry point; the add-in calls it once.
+        Fusion API numeric lengths are in centimeters, not millimeters.
+        Convert requested millimeters to centimeters (10 mm = 1 cm).
+        Part Design documents can contain ONLY the root component.
+        Always select the target component using this runtime check:
+        if design.designIntent == adsk.fusion.DesignIntentTypes.PartDesignIntentType:
+            component = root
+        else:
+            occurrence = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+            component = occurrence.component
+            component.name = "Generated component"
+        In a Part Design, create bodies and sketches in component (the existing root),
+        even if the request asks for a new component. Never add occurrences there.
+        Do not change design.designIntent, convert the document, rename the root,
+        or create a new document to bypass this restriction.
+        Do NOT use Component.create or root.children; those are not Fusion API calls.
+        Create a sketch with exactly:
+        sketch = component.sketches.add(component.xYConstructionPlane)
+        Do NOT construct adsk.fusion.Sketch() or pass a Sketch to sketches.add;
+        sketches.add expects a construction plane or planar face.
+        Create a rectangle with
+        sketch.sketchCurves.sketchLines.addTwoPointRectangle(
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Point3D.create(1, 1, 0)).
+        Get the closed profile with profile = sketch.profiles.item(0).
+        Extrude using component.features.extrudeFeatures.createInput(
+            profile, adsk.fusion.FeatureOperations.NewBodyFeatureOperation),
+        then setDistanceExtent(False, adsk.core.ValueInput.createByReal(1))
+        and component.features.extrudeFeatures.add(extrude_input).
         
         User Request: {user_request}
         
         Provide only the raw Python code without any markdown formatting, code block markers (like ```python), or additional explanation.
         Do not wrap the code in any formatting - return pure executable Python code.
+        Do not output reasoning, think tags, or prose before or after the code.
         """
         
         raw_script = self.provider.generate_response(prompt, context)
@@ -282,50 +330,41 @@ class AIInterface:
         return self._clean_script(raw_script)
     
     def _clean_script(self, script: str) -> str:
-        """Clean up the script to remove markdown formatting and other artifacts."""
-        # Remove markdown code block markers if present
-        lines = script.split('\n')
-        cleaned_lines = []
-        
-        in_code_block = False
-        for line in lines:
-            # Check if it's a code block marker
-            if line.strip().startswith('```'):
-                if not in_code_block:
-                    # Starting a code block, skip this line
-                    in_code_block = True
-                    continue
-                else:
-                    # Ending a code block, skip this line
-                    in_code_block = False
-                    continue
-            # Skip the line if we're looking at a language specifier after ```
-            elif in_code_block and not line.strip():
-                continue
-            else:
-                cleaned_lines.append(line)
-        
-        # Join the cleaned lines back together
-        cleaned_script = '\n'.join(cleaned_lines)
-        
-        # Remove leading/trailing whitespace
-        cleaned_script = cleaned_script.strip()
-        
-        # Remove any additional explanations after the code
-        # Look for lines that indicate explanations or comments outside the code
-        lines = cleaned_script.split('\n')
-        code_lines = []
-        for line in lines:
-            # If we encounter a line that looks like an explanation, stop
-            stripped = line.strip()
-            if (stripped.lower().startswith('explanation:') or 
-                stripped.lower().startswith('note:') or 
-                stripped.lower().startswith('# explanation') or
-                stripped.lower().startswith('# note')):
-                break
-            code_lines.append(line)
-        
-        return '\n'.join(code_lines).strip()
+        """Extract one complete Python response, never reasoning or partial code."""
+        script = script.strip()
+        if script.startswith('<think>'):
+            _, closing_tag, script = script.partition('</think>')
+            if not closing_tag:
+                raise ValueError("The model returned an unfinished reasoning block")
+            script = script.strip()
+        else:
+            # Some reasoning templates omit the opening tag in message.content.
+            closing = re.search(r'(?m)^[ \t]*</think>[ \t]*\r?$', script)
+            if closing:
+                script = script[closing.end():].strip()
+
+        fences = list(re.finditer(r'(?m)^[ \t]*```([^\r\n]*)\r?$', script))
+        if fences:
+            if (len(fences) != 2 or fences[0].group(1).strip().lower()
+                    not in ('', 'python', 'py') or fences[1].group(1).strip()):
+                raise ValueError(
+                    "The model must return one complete Python code block, not "
+                    "multiple, incomplete, or non-Python blocks. Generate again."
+                )
+            script = script[fences[0].end():fences[1].start()].strip()
+
+        if not script:
+            raise ValueError("The model returned no Python after its reasoning block")
+        try:
+            tree = ast.parse(script)
+        except SyntaxError as error:
+            raise ValueError(
+                f"The model did not return complete Python (line {error.lineno}: "
+                f"{error.msg}). Generate again; no code was executed."
+            ) from error
+        if not tree.body:
+            raise ValueError("The model returned no executable Python statements")
+        return script
     
     def explain_fusion_operation(self, operation_description: str) -> str:
         """Generate an explanation of a Fusion 360 operation."""

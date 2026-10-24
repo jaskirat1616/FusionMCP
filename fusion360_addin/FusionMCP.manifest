@@ -1,0 +1,11 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "author": "FusionMCP Development Team",
+  "description": {
+    "": "FusionMCP with full script preview and explicit execution confirmation."
+  },
+  "version": "1.0.1",
+  "runOnStartup": false,
+  "supportedOS": "windows|mac"
+}

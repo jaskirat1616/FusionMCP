@@ -1,225 +1,203 @@
-# Fusion 360 Add-in for FusionMCP
-# Provides real-time integration with Fusion 360
+"""FusionMCP add-in: generate, review, then explicitly execute."""
+
+import html
+import os
+import sys
+import traceback
 
 import adsk.core
 import adsk.fusion
-import traceback
-import os
-import sys
 
-# Add user's Python site-packages for dependencies FIRST (requests, yaml, etc.)
-# Try multiple possible Python 3.9 locations
-home_dir = os.path.expanduser('~')
-possible_paths = [
-    os.path.join(home_dir, 'Library', 'Python', '3.9', 'lib', 'python', 'site-packages'),
-    '/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/site-packages',
-    '/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages'
-]
 
-for path in possible_paths:
-    if os.path.exists(path) and path not in sys.path:
+ADDIN_DIR = os.path.dirname(os.path.abspath(__file__))
+PACKAGE_DIR = (
+    ADDIN_DIR if os.path.isdir(os.path.join(ADDIN_DIR, "fusionmcp"))
+    else os.path.dirname(ADDIN_DIR)
+)
+for path in (PACKAGE_DIR, os.path.join(PACKAGE_DIR, "_vendor")):
+    if path not in sys.path:
         sys.path.insert(0, path)
 
-# Add the parent directory to the path so we can import fusionmcp package
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parent_dir)
-
-from fusionmcp.fusion_mcp_main import FusionMCP
-from fusionmcp.fusion_command_executor import FusionCommandExecutor
+COMMAND_ID = "FusionMCPReview"
+_handlers = []
 
 
 def run(context):
-    """The run function for the add-in, called when the add-in is started."""
-    ui = None
+    ui = adsk.core.Application.get().userInterface
     try:
-        app = adsk.core.Application.get()
-        ui = app.userInterface
+        from fusionmcp.ai_interface import AIInterface
 
-        # Find the config file - check multiple locations
-        addin_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(addin_dir)
-
-        config_locations = [
-            os.path.join(addin_dir, 'config.yaml'),
-            os.path.join(parent_dir, 'config.yaml'),
-            os.path.expanduser('~/FusionMCP/config.yaml')
-        ]
-
-        config_path = 'config.yaml'  # Default fallback
-        for path in config_locations:
-            if os.path.exists(path):
-                config_path = path
-                break
-
-        # Create the FusionMCP instance with proper config path
-        mcp = FusionMCP(config_path)
-
-        # Set the Fusion 360 application in the MCP
-        mcp.set_fusion_app(app)
-
-        # Create a command for the add-in (use simple ID without dots)
-        cmd_def = ui.commandDefinitions.itemById('FusionMCPStart')
-        if not cmd_def:
-            try:
-                cmd_def = ui.commandDefinitions.addButtonDefinition(
-                    'FusionMCPStart',
-                    'Start MCP',
-                    'Launch the Multi-Modal Control Plane for Fusion 360',
-                    './resources/mcp_icon.png'
-                )
-            except:
-                # If button creation fails, try without icon
-                cmd_def = ui.commandDefinitions.addButtonDefinition(
-                    'FusionMCPStart',
-                    'Start MCP',
-                    'Launch the Multi-Modal Control Plane for Fusion 360'
-                )
-
-        # Connect to the command created event
-        on_execute = FusionMCPCommandCreatedEventHandler(mcp)
-        cmd_def.commandCreated.add(on_execute)
-
-        # Execute the command
-        cmd_def.execute()
-
-    except:
-        if ui:
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+        config_path = os.path.join(ADDIN_DIR, "config.yaml")
+        if not os.path.isfile(config_path):
+            raise FileNotFoundError("Place config.yaml beside FusionMCP.py.")
+        ai = AIInterface(config_path)
+        definition = ui.commandDefinitions.itemById(COMMAND_ID)
+        if definition:
+            definition.deleteMe()
+        definition = ui.commandDefinitions.addButtonDefinition(
+            COMMAND_ID, "FusionMCP",
+            "Generate with your configured provider, review Python, then confirm execution."
+        )
+        handler = CommandCreatedHandler(ai)
+        definition.commandCreated.add(handler)
+        _handlers.append(handler)
+        panel = ui.workspaces.itemById("FusionSolidEnvironment").toolbarPanels.itemById(
+            "SolidScriptsAddinsPanel"
+        )
+        if panel is None:
+            raise RuntimeError("Fusion's Scripts and Add-Ins toolbar panel was not found.")
+        control = panel.controls.itemById(COMMAND_ID)
+        if control is None:
+            control = panel.controls.addCommand(definition)
+        control.isPromoted = True
+        definition.execute()
+    except Exception:
+        ui.messageBox("FusionMCP could not start:\n" + traceback.format_exc())
 
 
 def stop(context):
-    """The stop function for the add-in, called when the add-in is stopped."""
-    ui = None
+    ui = adsk.core.Application.get().userInterface
     try:
+        workspace = ui.workspaces.itemById("FusionSolidEnvironment")
+        if workspace:
+            panel = workspace.toolbarPanels.itemById("SolidScriptsAddinsPanel")
+            if panel:
+                control = panel.controls.itemById(COMMAND_ID)
+                if control:
+                    control.deleteMe()
+        definition = ui.commandDefinitions.itemById(COMMAND_ID)
+        if definition:
+            definition.deleteMe()
+        _handlers.clear()
+    except Exception:
+        ui.messageBox("FusionMCP could not stop:\n" + traceback.format_exc())
+
+
+class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
+    def __init__(self, ai):
+        super().__init__()
+        self.ai = ai
+
+    def notify(self, args):
+        ui = adsk.core.Application.get().userInterface
+        try:
+            command = args.command
+            command.okButtonText = "Execute reviewed script"
+            inputs = command.commandInputs
+            inputs.addTextBoxCommandInput(
+                "request", "Request",
+                "Create a new component containing a 10 mm cube.", 4, False
+            )
+            inputs.addBoolValueInput("generate", "Generate preview", False, "", False)
+            inputs.addTextBoxCommandInput(
+                "preview", "Python preview",
+                "Generate a preview first. Nothing is executed during generation.",
+                18, True
+            )
+            state = {"script": None}
+            changed = InputChangedHandler(self.ai, state)
+            execute = ExecuteHandler(state)
+            validate = ValidateInputsHandler(state)
+            command.inputChanged.add(changed)
+            command.execute.add(execute)
+            command.validateInputs.add(validate)
+            _handlers.extend((changed, execute, validate))
+        except Exception:
+            ui.messageBox("FusionMCP dialog failed:\n" + traceback.format_exc())
+
+
+class InputChangedHandler(adsk.core.InputChangedEventHandler):
+    def __init__(self, ai, state):
+        super().__init__()
+        self.ai = ai
+        self.state = state
+
+    def notify(self, args):
+        ui = adsk.core.Application.get().userInterface
+        try:
+            inputs = args.inputs
+            preview = inputs.itemById("preview")
+            if args.input.id == "request":
+                self.state["script"] = None
+                preview.formattedText = "Request changed. Generate a new preview."
+                return
+            if args.input.id != "generate" or not args.input.value:
+                return
+            args.input.value = False
+            self.state["script"] = None
+            preview.formattedText = "Generating with the configured AI provider..."
+            request = inputs.itemById("request").text.strip()
+            if not request:
+                raise ValueError("Enter a design request before generating.")
+            script = self.ai.generate_fusion_script(request)
+            compile(script, "<FusionMCP preview>", "exec")
+            from fusionmcp.fusion_command_executor import FusionScriptValidator
+
+            validation = FusionScriptValidator().validate_script(script)
+            if not validation["is_safe"]:
+                preview.formattedText = html.escape("\n".join(validation["errors"]))
+                ui.messageBox(
+                    "\n".join(validation["errors"]),
+                    "FusionMCP - Generated script rejected"
+                )
+                return
+            preview.formattedText = "<pre>" + html.escape(script) + "</pre>"
+            self.state["script"] = script
+        except Exception:
+            self.state["script"] = None
+            args.inputs.itemById("preview").formattedText = (
+                "Generation failed. See the error dialog, then generate again."
+            )
+            ui.messageBox("FusionMCP generation failed:\n" + traceback.format_exc())
+
+
+class ValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
+    def __init__(self, state):
+        super().__init__()
+        self.state = state
+
+    def notify(self, args):
+        args.areInputsValid = bool(self.state["script"])
+
+
+class ExecuteHandler(adsk.core.CommandEventHandler):
+    def __init__(self, state):
+        super().__init__()
+        self.state = state
+
+    def notify(self, args):
         app = adsk.core.Application.get()
         ui = app.userInterface
-
-        # Clean up the command definition
-        cmd_def = ui.commandDefinitions.itemById('FusionMCPStart')
-        if cmd_def:
-            cmd_def.deleteMe()
-
-    except:
-        if ui:
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-
-class FusionMCPCommandCreatedEventHandler(adsk.core.CommandCreatedEventHandler):
-    """Event handler for when the MCP command is created."""
-
-    def __init__(self, mcp):
-        super().__init__()
-        self.mcp = mcp
-
-    def notify(self, args):
         try:
-            # Create the command
-            cmd = args.command
-            cmd.isOKButtonVisible = True
-            cmd.isCancelButtonVisible = True
+            from fusionmcp.fusion_command_executor import FusionCommandExecutor
 
-            # Connect to the execute event
-            on_execute = FusionMCPCommandExecuteHandler(self.mcp)
-            cmd.execute.add(on_execute)
-
-            # Connect to the input changed event
-            on_input_changed = FusionMCPCommandInputChangedHandler(self.mcp)
-            cmd.inputChanged.add(on_input_changed)
-
-            # Connect to the destroy event
-            on_destroy = FusionMCPCommandDestroyHandler()
-            cmd.destroy.add(on_destroy)
-
-            # Add inputs to the command dialog
-            inputs = cmd.commandInputs
-            input_text = inputs.addTextBoxCommandInput('inputText', 'Enter your request:', 'Create a cube with dimensions 10mm x 10mm x 10mm', 5, True)
-            execute_button = inputs.addBoolValueInput('executeButton', 'Execute', False, '', True)
-
-        except:
-            app = adsk.core.Application.get()
-            ui = app.userInterface
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-
-class FusionMCPCommandExecuteHandler(adsk.core.CommandEventHandler):
-    """Event handler for when the MCP command is executed."""
-
-    def __init__(self, mcp):
-        super().__init__()
-        self.mcp = mcp
-
-    def notify(self, args):
-        try:
-            app = adsk.core.Application.get()
-            ui = app.userInterface
-            cmd = args.firingEvent.sender
-
-            # Get the input values
-            input_text = cmd.commandInputs.itemById('inputText').text
-            should_execute = cmd.commandInputs.itemById('executeButton').value
-
-            if input_text.strip() == '':
-                ui.messageBox('Please enter a request.')
+            script = self.state["script"]
+            if not script:
+                ui.messageBox(
+                    "Click Generate preview first, then review the Python before "
+                    "clicking Execute reviewed script.",
+                    "FusionMCP - Preview required"
+                )
                 return
-
-            # Process the request through FusionMCP
-            ui.messageBox('Processing request: {}'.format(input_text))
-
-            # Use the MCP to process the request
-            result = self.mcp.process_request(input_text)
-
-            if result['type'] == 'fusion_script':
-                script = result['generated_script']
-
-                if should_execute:
-                    # Execute the script in Fusion 360
-                    executor = FusionCommandExecutor()
-                    execution_result = executor.execute_script(script, app)
-
-                    if execution_result['success']:
-                        ui.messageBox('Script executed successfully!\nOutput: {}'.format(execution_result['output']))
-                    else:
-                        ui.messageBox('Script execution failed!\nError: {}'.format(execution_result['error_output']))
-                else:
-                    # Just show the generated script
-                    ui.messageBox('Generated script:\n{}'.format(script[:500] + '...' if len(script) > 500 else script))
-            else:
-                ui.messageBox('Could not process the request.')
-
-        except:
-            app = adsk.core.Application.get()
-            ui = app.userInterface
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-
-class FusionMCPCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
-    """Event handler for when command inputs change."""
-
-    def __init__(self, mcp):
-        super().__init__()
-        self.mcp = mcp
-
-    def notify(self, args):
-        try:
-            changed_input = args.input
-            # Handle input changes if needed
-        except:
-            app = adsk.core.Application.get()
-            ui = app.userInterface
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-
-class FusionMCPCommandDestroyHandler(adsk.core.CommandEventHandler):
-    """Event handler for when the command is destroyed."""
-
-    def __init__(self):
-        super().__init__()
-
-    def notify(self, args):
-        try:
-            # Clean up if needed
-            pass
-        except:
-            app = adsk.core.Application.get()
-            ui = app.userInterface
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+            executor = FusionCommandExecutor()
+            validation = executor.validator.validate_script(script)
+            if not validation["is_safe"]:
+                raise ValueError("\n".join(validation["errors"]))
+            answer, cancelled = ui.inputBox(
+                "Type EXECUTE to run the Python you just reviewed.\n\n"
+                "Generated code has your user permissions. Validation is NOT a sandbox.\n"
+                "Use a disposable design and do not execute code you do not understand.",
+                "FusionMCP - Confirm execution",
+                ""
+            )
+            if cancelled or answer != "EXECUTE":
+                return
+            self.state["script"] = None
+            result = executor.execute_script(script, app)
+            if not result["success"]:
+                raise RuntimeError(
+                    result.get("error_output") or result.get("error") or str(result)
+                )
+            ui.messageBox("Script executed once.\n" + result.get("output", ""))
+        except Exception:
+            ui.messageBox("FusionMCP execution failed:\n" + traceback.format_exc())

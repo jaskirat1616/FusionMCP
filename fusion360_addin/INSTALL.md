@@ -1,152 +1,101 @@
-# Installation Guide for FusionMCP Add-in
+# Installing the FusionMCP add-in
 
-## Prerequisites
-- Autodesk Fusion 360
-- Python 3.8+ with required packages (PyYAML, requests, google-generativeai, openai)
-- An AI backend: Ollama (recommended), LM Studio, OpenAI, or Google Gemini
+## File layout
 
-## Installation Steps
+Install a self-contained folder named `FusionMCP` with this structure:
 
-### Method 1: Install from Project Directory (Development)
+```text
+FusionMCP\
+  FusionMCP.py
+  FusionMCP.manifest
+  config.yaml
+  fusionmcp\
+    __init__.py
+    ...
+  _vendor\
+    requests\
+    yaml\
+    ...
+```
 
-1. **Locate Fusion 360 Add-ins Directory**:
+Copy `FusionMCP.py`, `FusionMCP.manifest`, and `config.yaml` from this
+`fusion360_addin` directory. Copy the repository's `fusionmcp` package alongside
+them. Copying only `fusion360_addin` is not sufficient.
 
-   **Windows**:
-   ```
-   %APPDATA%\Autodesk\Autodesk Fusion 360\API\Addins
-   ```
+The `FusionMCP.manifest` filename is significant: it matches `FusionMCP.py`.
+The older `manifest.json` is not a replacement for Fusion's add-in manifest.
 
-   **Mac**:
-   ```
-   ~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/Addins
-   ```
+For a source checkout, you may instead register `fusion360_addin` directly:
+the entry point also finds `fusionmcp` and `_vendor` in its parent directory.
 
-2. **Create Symbolic Link or Copy Files**:
+## Dependencies
 
-   **Option A - Symbolic Link (Recommended for development)**:
-   ```bash
-   # Windows (run as Administrator)
-   mklink /D "%APPDATA%\Autodesk\Autodesk Fusion 360\API\Addins\FusionMCP" "C:\path\to\FusionMCP"
+Fusion embeds its own Python. Installing packages into an unrelated system
+Python does not make them available inside Fusion.
 
-   # Mac/Linux
-   ln -s /path/to/FusionMCP ~/Library/Application\ Support/Autodesk/Autodesk\ Fusion\ 360/API/Addins/FusionMCP
-   ```
+For LM Studio and Ollama, only `requests` and `PyYAML` and their dependencies
+are needed. Use an available pip-enabled interpreter compatible with Fusion's
+Python version and operating system to install them into the private `_vendor`
+directory, for example:
 
-   **Option B - Copy Files**:
-   Copy the entire FusionMCP project directory (including both `fusion360_addin` and `fusionmcp` folders) to the add-ins location.
+```text
+python -m pip install --only-binary=:all: --target "<FusionMCP folder>\_vendor" requests PyYAML
+```
 
-3. **Configure Your AI Provider**:
-   The add-in includes a `config.yaml` file in the `fusion360_addin` directory. Edit it to configure your preferred AI provider:
+Use Fusion's actual Python version, not an assumed version. The verified Windows
+build used Python 3.14; PyYAML contains version/platform-specific native code.
+If Fusion's embedded Python has no pip, do not modify its global installation:
+use a compatible external interpreter or a pip bootstrap with that interpreter.
+Install `google-generativeai` there as well only when selecting Gemini.
+The complete optional provider dependencies remain in `requirements.txt`.
 
-   **For Ollama (Local, Recommended)**:
-   ```yaml
-   ai_provider: "ollama"
-   ollama_model: "llama3.1"
-   ollama_url: "http://localhost:11434/api/generate"
-   ```
+## Configuration
 
-   **For OpenAI**:
-   ```yaml
-   ai_provider: "openai"
-   openai_api_key: "sk-your-api-key-here"
-   openai_model: "gpt-3.5-turbo"
-   ```
+Edit `config.yaml` beside the installed `FusionMCP.py`. Preserve your chosen
+provider and credentials; never commit private configuration.
 
-   **For Google Gemini**:
-   ```yaml
-   ai_provider: "gemini"
-   gemini_api_key: "your-gemini-api-key-here"
-   gemini_model: "gemini-pro"
-   ```
+For LM Studio, start the local server, load a model, and set its exact model ID:
 
-4. **Install Python Dependencies**:
-   Fusion 360 uses its own Python environment. Install dependencies system-wide:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```yaml
+ai_provider: "lm_studio"
+lm_studio_model: "replace-with-your-loaded-model-id"
+lm_studio_url: "http://127.0.0.1:1234/v1/chat/completions"
+plugins: []
+```
 
-5. **Restart Fusion 360**:
-   After installation, restart Fusion 360 to load the new add-in.
+The add-in uses the configured provider; it does not force LM Studio or select a
+particular model. Existing Ollama/OpenAI/Gemini configuration remains supported
+but was not manually verified in the reported Windows compatibility test.
 
-### Method 2: Standalone Add-in Installation (Production)
+## Register and run
 
-1. **Copy Add-in Files**:
-   ```bash
-   # Copy the entire fusion360_addin directory contents to Fusion 360 add-ins folder
-   # The directory structure should be:
-   # Addins/FusionMCP/
-   #   ├── FusionMCP.py
-   #   ├── config.yaml
-   #   ├── manifest.json
-   #   ├── resources/
-   #   └── (copy fusionmcp package here)
-   ```
+On the verified Windows installation the add-in directory was:
 
-2. **Ensure fusionmcp Package is Accessible**:
-   Copy the `fusionmcp` directory to the same location as `FusionMCP.py` or ensure it's in Python's path.
+```text
+%APPDATA%\Autodesk\Autodesk Fusion 360\API\AddIns\FusionMCP
+```
 
-## Using the Add-in
+Fusion versions and custom API preferences can use other directories. The
+reliable way to register is to open **Scripts and Add-Ins**, use the add/import
+control, and select the installed `FusionMCP` folder.
 
-1. Once installed, you'll find the "FusionMCP" panel in the "MCP Tab" under the SolidModel workspace.
+Open a design, select the **Utilities** tab (not **Solid**), and find
+**Scripts and Add-Ins**. Alternatively press **S** and search for that command.
+Select **FusionMCP** and run it. Automatic startup is disabled in the manifest.
 
-2. Click the "Start MCP" button to open the command dialog.
-
-3. Enter your design request in the text box (e.g., "Create a cube with dimensions 10mm x 10mm x 10mm").
-
-4. Choose whether to execute the generated script directly in Fusion 360.
-
-## Configuration Options
-
-The add-in supports all the same configuration options as the standalone version:
-
-- OpenAI: Set `ai_provider: "openai"` with your API key
-- Google Gemini: Set `ai_provider: "gemini"` with your API key
-- Ollama: Set `ai_provider: "ollama"` with model and URL
-- LM Studio: Set `ai_provider: "lm_studio"` with model and URL
+See [usage and compatibility notes](README.md) for preview and confirmation.
+Restart Fusion completely after updating package files to clear module caches.
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Add-in doesn't appear in Fusion 360**:
-   - Verify the installation path is correct
-   - Ensure the directory is named exactly "FusionMCP"
-   - Restart Fusion 360
-   - Check Scripts and Add-Ins panel for errors
-
-2. **"Config file not found" error**:
-   - Ensure `config.yaml` exists in the `fusion360_addin` directory
-   - Check that the config file is valid YAML format
-   - The add-in will search in these locations (in order):
-     1. `fusion360_addin/config.yaml`
-     2. `FusionMCP/config.yaml` (parent directory)
-     3. `~/FusionMCP/config.yaml` (home directory)
-
-3. **"Cannot connect to AI service" error**:
-   - For Ollama: Ensure Ollama is running (`ollama serve`)
-   - For LM Studio: Ensure LM Studio server is running and API is enabled
-   - For OpenAI/Gemini: Check your API key is valid
-   - Verify the URL in config.yaml is correct
-
-4. **Import errors**:
-   - Install required packages: `pip install -r requirements.txt`
-   - Ensure Python version is 3.8 or higher
-   - Check that `fusionmcp` package is accessible from the add-in
-
-5. **Script execution fails**:
-   - Check the Fusion 360 Text Commands window for detailed errors
-   - Review the `execution_log.txt` file for debugging information
-   - Ensure the generated script is valid Fusion 360 API code
-
-### Debug Mode
-
-To enable detailed logging:
-1. Open Fusion 360's Text Commands window (View > Text Commands)
-2. Look for FusionMCP log messages
-3. Check `execution_log.txt` in the add-in directory
-
-### Getting Help
-
-- Check the main README.md for usage examples
-- Review example scripts in the `examples` directory
-- Report issues on the GitHub repository
+- **No add-in entry:** check the matching `.py`/`.manifest` filenames and the
+  registered folder. Restart Fusion after installation.
+- **Missing requests or yaml:** check `_vendor` layout and Python compatibility.
+- **Connection failure:** check your model server and the configured endpoint.
+- **Unsupported import (f3dapi):** regenerate using the official `adsk` API;
+  do not try to install an invented wrapper.
+- **Part Design component error:** generate a new preview that creates bodies
+  in the existing root component, not another component. Do not convert a
+  document merely to work around generated code.
+- **Invalid model output:** regenerate. The parser rejects incomplete Python
+  and reasoning/prose it cannot unambiguously separate from the script.

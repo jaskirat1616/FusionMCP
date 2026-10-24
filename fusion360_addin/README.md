@@ -1,43 +1,69 @@
-# FusionMCP Fusion 360 Add-in
+# FusionMCP Fusion add-in
 
-This add-in integrates the FusionMCP Multi-Modal Control Plane directly into Autodesk Fusion 360, allowing you to interact with AI models to create and modify CAD models in real-time.
+Generate Python with your configured AI provider, review the complete script,
+then explicitly confirm execution. See [installation instructions](INSTALL.md).
 
-## Features
+## Verified environment
 
-- Natural language to CAD conversion directly within Fusion 360
-- Support for multiple AI backends (Ollama, LM Studio, OpenAI, Gemini)
-- Real-time script generation and execution
-- Context-aware design assistant
-- Plugin system for extended functionality
+An end user successfully generated and executed a script using:
+
+- Autodesk Fusion Personal **2706.1.14 x86_64**
+- Windows
+- LM Studio's local OpenAI-compatible API
+- Fusion's embedded Python 3.14
+
+This is a compatibility report for that environment, not a guarantee for every
+generated script, provider, document type, or operating system. Mac and other
+providers have not been manually verified as part of this change.
 
 ## Usage
 
-1. Install the add-in following the instructions in INSTALL.md
-2. Start Ollama (or your preferred AI service) with the model of your choice
-3. Open Fusion 360 and navigate to the MCP Tab
-4. Click "Start MCP" and enter your design request
-5. The AI will generate a Fusion 360 script and execute it in real-time
+1. Keep your configured AI service running.
+2. Open a design. Select **Utilities > Scripts and Add-Ins**, select
+   **FusionMCP**, and click **Run**. If the toolbar differs, search for
+   **Scripts and Add-Ins** using **S**.
+3. Enter a request, then click **Generate preview**. No code is executed here.
+4. Review the complete Python shown in the preview.
+5. **Execute reviewed script** is enabled only after successful generation and
+   validation. It is disabled again if the request changes or generation fails.
+6. Type `EXECUTE` in the separate confirmation prompt to execute the reviewed
+   script once. There is no automatic execution retry.
 
-## Supported Commands
+The **FusionMCP** toolbar command reopens the dialog. Restart Fusion after
+updating Python modules, because imported package modules can remain cached.
 
-The AI system understands a wide variety of CAD commands including:
+## Behavior and limitations
 
-- Basic shapes: cubes, cylinders, spheres, cones
-- Sketch operations: lines, circles, rectangles, polygons
-- Feature operations: extrude, revolve, sweep, loft
-- Modification: fillet, chamfer, shell, pattern
-- Assembly operations: constraints, joints
+- The add-in calls the configured AI interface directly instead of
+  `FusionMCP.process_request`, which executes scripts internally. This avoids
+  executing during preview and executing the same script a second time.
+- Fusion-style `run(context)` scripts are invoked once after their definitions;
+  top-level scripts remain supported.
+- Generation guidance uses the official `adsk.core` and `adsk.fusion` API,
+  centimeter-based numeric lengths, and Part/Assembly/Hybrid design intent.
+  Part Designs use the existing root component rather than adding a child.
+  Guidance is not a guarantee that a model will produce correct API calls.
+- Leading reasoning output, including a standalone closing `</think>` from
+  reasoning templates that omit the opening tag, is removed before validation.
+  One complete Python Markdown block can be extracted from surrounding prose.
+  Ambiguous/incomplete blocks, empty answers, and invalid Python are rejected.
+- Missing imports such as an invented `f3dapi` wrapper are rejected at preview.
+  This check does not validate every API method or operation.
+- The add-in entry point does not use the orchestrator's plugins or persistent
+  conversation storage. Standalone orchestrator behavior is unchanged.
 
-Example requests:
-- "Create a cube with dimensions 10mm x 10mm x 10mm"
-- "Draw a circle with radius 5mm centered at origin"
-- "Extrude the sketch by 15mm"
-- "Create a cylinder with radius 3mm and height 20mm"
+**Python runs with your user permissions. Validation is not a security sandbox.**
+Inspect the script, use a disposable design first, and verify geometry and units.
+A local model connection does not disable Autodesk Fusion's own cloud services.
 
-## Configuration
+## Regression tests
 
-The add-in reads configuration from a config.yaml file, which determines which AI provider to use and related settings.
+Install `requests` and `PyYAML` into your test interpreter, then from the
+repository root run:
 
-## Safety
+```text
+python -B -m unittest -v test_local_install
+```
 
-The system includes multiple safety checks to prevent destructive operations and validate all generated scripts before execution.
+Tests mock the native Fusion UI and do not create CAD geometry. Live model
+requests are separate manual checks, not part of this offline suite.
